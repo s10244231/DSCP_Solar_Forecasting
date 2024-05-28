@@ -76,6 +76,9 @@ start_date_slider = start_date_input - pd.Timedelta(days=days_ahead * 0.25)
 # Ensure that start_date_slider is not before the minimum date in the dataset
 start_date_slider = max(start_date_slider, df['ds'].min())
 
+# Display the total energy produced
+st.write(f'Total predicted energy produced in the next {days_ahead} days: ~{total_energy_predicted:.2f} kWh')
+
 # Plot the forecast with Plotly
 line_fig = plot_plotly(m, forecast)
 
@@ -86,3 +89,5 @@ line_fig.update_layout(title='Energy Forecast: Adjust the Slider Below to Select
 
 # Show the plots in Streamlit
 st.plotly_chart(line_fig)
+
+
