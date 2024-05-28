@@ -44,19 +44,13 @@ melted_table = pivot_table.melt(id_vars='Year', value_vars=months_order,
                                 var_name='Month', value_name='Energy-kWh')
 
 # Plot using Plotly
-fig = px.bar(melted_table, x='Year', y='Energy-kWh', color='Month', 
+bar_fig = px.bar(melted_table, x='Year', y='Energy-kWh', color='Month', 
              category_orders={'Month': months_order},
              labels={'Energy-kWh': 'Energy (kWh)', 'Year': 'Year', 'Month': 'Month'},
-             title='This is Your Total Monthly Energy Production by Year')
+             title='Total Monthly Energy Production by Year')
 
 # Update layout for better readability
-fig.update_layout(barmode='group', xaxis_tickangle=-45)
-
-# Show the plot in Streamlit
-st.plotly_chart(fig)
-
-# Drop Year and Month columns for Prophet model
-df = df.drop(columns=['Year', 'Month'])
+bar_fig.update_layout(barmode='group', xaxis_tickangle=-45)
 
 # Ensure 'Date and Time' is of datetime type
 df['Date and Time'] = pd.to_datetime(df['Date and Time'])
@@ -82,16 +76,14 @@ with open('solar_forecast_prophet.pkl', 'wb') as f:
     pickle.dump(forecast, f)
 
 # Plot the forecast with Plotly
-fig = plot_plotly(m, forecast)
+line_fig = plot_plotly(m, forecast)
 
 # Update the layout to add a title
-fig.update_layout(title='Energy Forecasts: Adjust the Slider Below to Select the Timeframe.')
-
-# Show the plot in Streamlit
-st.plotly_chart(fig)
+line_fig.update_layout(title='Energy Forecasts: Adjust the Slider Below to Select the Timeframe.')
 
 # Create an input button on the Streamlit website to ask for input on how many days in advance the user wants to know the total energy produced
-days_ahead = st.number_input('Enter number of days in advance to forecast total energy produced:', min_value=1, max_value=365, value=30)
+st.sidebar.markdown("## Enter number of days in advance to forecast total energy produced:")
+days_ahead = st.sidebar.number_input('', min_value=1, max_value=365, value=30)
 
 # Calculate total predicted energy produced based on the number of days the user selected
 start_date = df['ds'].max() + pd.Timedelta(days=1)
@@ -99,4 +91,8 @@ end_date = start_date + pd.Timedelta(days=days_ahead - 1)
 total_energy_predicted = forecast.loc[(forecast['ds'] >= start_date) & (forecast['ds'] <= end_date), 'yhat'].sum()
 
 # Display the total predicted energy
-st.write(f'Total predicted energy produced in the next {days_ahead} days: {total_energy_predicted:.2f} kWh')
+st.sidebar.write(f'Total predicted energy produced in the next {days_ahead} days: ~{total_energy_predicted:.2f} kWh')
+
+# Show the plots in Streamlit
+st.plotly_chart(bar_fig)
+st.plotly_chart(line_fig)
