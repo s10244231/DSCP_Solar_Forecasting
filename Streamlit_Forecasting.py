@@ -1,107 +1,115 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import numpy as np
 from prophet import Prophet
-from prophet.plot import plot_plotly, plot_components_plotly
-import joblib
-import os
+import plotly.express as px
+from prophet.plot import plot_plotly
+import pickle
 
-# Set the Streamlit page configuration
-st.set_page_config(page_title="Energy Forecasting", layout="wide")
+# Load data
+df = pd.read_csv('EstateSolarWeather.csv')
 
-# Title of the Streamlit app
-st.title("Energy Forecasting Visualization")
+# Drop rows where both 'Expected Value kWh' and 'PR %' are 0
+df = df[~((df['Expected Value kWh'] == 0) & (df['PR %'] == 0))]
 
-# Upload CSV file
-uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
+# Ensure df is a copy if it's a slice
+df = df.copy()
 
-if uploaded_file:
-    # Read the CSV file
-    df = pd.read_csv(uploaded_file)
+# Safely create a new column
+df.loc[:, 'Energy-kWh'] = df['Expected Value kWh'] * df['PR %'] / 100
 
-    # Drop rows where both 'Expected Value kWh' and 'PR %' are 0
-    df = df[~((df['Expected Value kWh'] == 0) & (df['PR %'] == 0))]
+# Plot using Plotly
+fig = px.line(df, x='Date and Time', y='Energy-kWh', 
+              labels={'Energy-kWh': 'Energy (kWh)', 'Date and Time': 'Date and Time'},
+              title='Energy Consumption Over Time')
 
-    # Ensure df is a copy if it's a slice
-    df = df.copy()
+# Update layout for better readability
+fig.update_layout(width=1200, height=400)
 
-    # Safely create a new column
-    df['Energy-kWh'] = df['Expected Value kWh'] * df['PR %'] / 100
+# Show the plot in Streamlit
+st.plotly_chart(fig)
 
-    # Plot initial data
-    st.subheader("Energy-kWh Over Time")
-    fig, ax = plt.subplots(figsize=(18, 6))
-    df.plot(x='Date and Time', y='Energy-kWh', ax=ax)
-    st.pyplot(fig)
+# Ensure 'Date and Time' is of datetime type
+df['Date and Time'] = pd.to_datetime(df['Date and Time'])
 
-    # Ensure 'Date and Time' is of datetime type
-    df['Date and Time'] = pd.to_datetime(df['Date and Time'])
+# Extract year and month name
+df['Year'] = df['Date and Time'].dt.year
+df['Month'] = df['Date and Time'].dt.strftime('%B')  # Get the month name
 
-    # Extract year and month name
-    df['Year'] = df['Date and Time'].dt.year
-    df['Month'] = df['Date and Time'].dt.strftime('%B')  # Get the month name
+# Group by year and month name, then aggregate (sum) 'Energy-kWh'
+monthly_data = df.groupby(['Year', 'Month'], sort=False)['Energy-kWh'].sum().reset_index()
 
-    # Group by year and month name, then aggregate (sum) 'Energy-kWh'
-    monthly_data = df.groupby(['Year', 'Month'], sort=False)['Energy-kWh'].sum().reset_index()
+# Pivot the table to make it suitable for bar plotting
+pivot_table = monthly_data.pivot(index='Year', columns='Month', values='Energy-kWh')
 
-    # Pivot the table to make it suitable for bar plotting
-    pivot_table = monthly_data.pivot(index='Year', columns='Month', values='Energy-kWh')
+# Ensure the months are in the correct order
+months_order = ["January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"]
+pivot_table = pivot_table[months_order]
 
-    # Ensure the months are in the correct order
-    months_order = ["January", "February", "March", "April", "May", "June",
-                    "July", "August", "September", "October", "November", "December"]
-    pivot_table = pivot_table[months_order]
+# Reset index for plotting
+pivot_table = pivot_table.reset_index()
 
-    # Plot monthly data
-    st.subheader("Monthly Energy Consumption by Year")
-    fig, ax = plt.subplots(figsize=(18, 6))
-    pivot_table.plot(kind='bar', ax=ax)
-    ax.set_title('Monthly Energy Consumption by Year')
-    ax.set_xlabel('Year')
-    ax.set_ylabel('Energy-kWh')
-    ax.legend(title='Month')
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=0)  # Keep x-axis labels horizontal for better readability
-    st.pyplot(fig)
+# Melt the DataFrame to long format for Plotly
+melted_table = pivot_table.melt(id_vars='Year', value_vars=months_order, 
+                                var_name='Month', value_name='Energy-kWh')
 
-    df = df.drop(columns=['Year', 'Month'])
+# Plot using Plotly
+fig = px.bar(melted_table, x='Year', y='Energy-kWh', color='Month', 
+             category_orders={'Month': months_order},
+             labels={'Energy-kWh': 'Energy (kWh)', 'Year': 'Year', 'Month': 'Month'},
+             title='This is Your Total Monthly Energy Production by Year')
 
-    # Ensure 'Date and Time' is of datetime type
-    df['Date and Time'] = pd.to_datetime(df['Date and Time'])
+# Update layout for better readability
+fig.update_layout(barmode='group', xaxis_tickangle=-45)
 
-    # Group by 'Date and Time' and sum 'Energy-kWh'
-    df = df.groupby('Date and Time')['Energy-kWh'].sum().reset_index()
+# Show the plot in Streamlit
+st.plotly_chart(fig)
 
-    # Prepare the data for Prophet
-    df.rename(columns={'Date and Time': 'ds', 'Energy-kWh': 'y'}, inplace=True)
+# Drop Year and Month columns for Prophet model
+df = df.drop(columns=['Year', 'Month'])
 
-    # Define model filename
-    model_filename = 'solar_forecast_prophet.pkl'
-    
-    # Check if the model file exists
-    if os.path.exists(model_filename):
-        # Load the existing model
-        with open(model_filename, 'rb') as f:
-            m = joblib.load(f)
-        st.write("Model loaded from disk.")
-    else:
-        # Fit a new Prophet model
-        m = Prophet()
-        m.fit(df)
-        # Save the model to disk
-        with open(model_filename, 'wb') as f:
-            joblib.dump(m, f)
-        st.write("Model trained and saved to disk.")
+# Ensure 'Date and Time' is of datetime type
+df['Date and Time'] = pd.to_datetime(df['Date and Time'])
 
-    # Create future dataframe
-    future = m.make_future_dataframe(periods=365)
+# Group by 'Date and Time' and sum 'Energy-kWh'
+df = df.groupby('Date and Time')['Energy-kWh'].sum().reset_index()
 
-    # Make predictions
-    forecast = m.predict(future)
+# Prepare the data for Prophet
+df.rename(columns={'Date and Time': 'ds', 'Energy-kWh': 'y'}, inplace=True)
 
-    # Plot the forecast
-    st.subheader("Forecasted Energy Consumption")
-    fig_plotly = plot_plotly(m, forecast)
-    st.plotly_chart(fig_plotly)
+# Fit the Prophet model
+m = Prophet()
+m.fit(df)
+
+# Create future dataframe
+future = m.make_future_dataframe(periods=365)
+
+# Predict
+forecast = m.predict(future)
+
+# Save the forecast to a pickle file
+with open('solar_forecast_prophet.pkl', 'wb') as f:
+    pickle.dump(forecast, f)
+
+# Plot the forecast with Plotly
+fig = plot_plotly(m, forecast)
+
+# Update the layout to add a title
+fig.update_layout(title='Energy Forecasts: Adjust the Slider Below to Select the Timeframe.')
+
+# Show the plot in Streamlit
+st.plotly_chart(fig)
+
+# Create an input button on the Streamlit website to ask for input on how many days in advance the user wants to know the total energy produced
+days_ahead = st.number_input('Enter number of days in advance to forecast total energy produced:', min_value=1, max_value=365, value=30)
+
+# Calculate total predicted energy produced based on the number of days the user selected
+total_energy_predicted = forecast.loc[forecast['ds'] <= (df['ds'].max() + pd.Timedelta(days=days_ahead)), 'yhat'].sum()
+
+# Display the total predicted energy
+st.write(f'Total predicted energy produced in the next {days_ahead} days: {total_energy_predicted:.2f} kWh')
+
 
     # Plot forecast components
     st.subheader("Forecast Components")
