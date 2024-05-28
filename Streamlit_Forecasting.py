@@ -63,7 +63,7 @@ with open('solar_forecast_prophet.pkl', 'wb') as f:
     pickle.dump(forecast, f)
 
 # Create an input button on the Streamlit website to ask for input on how many days in advance the user wants to know the total energy produced
-st.markdown("## Enter number of days in advance to forecast total energy produced:")
+st.markdown("## Enter Number of Days in Advance to Forecast Total Energy Produced:")
 days_ahead = st.number_input('', min_value=1, max_value=365, value=30)
 
 # Calculate total predicted energy produced based on the number of days the user selected
@@ -80,8 +80,9 @@ start_date_slider = max(start_date_slider, df['ds'].min())
 line_fig = plot_plotly(m, forecast)
 
 # Update the layout to add a title and set the range for the slider
-line_fig.update_layout(title='Energy Forecasts: Adjust the Slider Below to Select the Timeframe.',
-                       xaxis=dict(rangeslider=dict(visible=True), range=[start_date_slider, end_date_input]))
+line_fig.update_layout(title='Energy Forecast: Adjust the Slider Below to Select the Timeframe',
+                       xaxis=dict(title='Date', rangeslider=dict(visible=True), range=[start_date_slider, end_date_input]),
+                       yaxis=dict(title='Energy kWh'))
 
 # Show the plots in Streamlit
 st.plotly_chart(line_fig)
