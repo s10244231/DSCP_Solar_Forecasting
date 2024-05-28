@@ -18,17 +18,6 @@ df = df.copy()
 # Safely create a new column
 df.loc[:, 'Energy-kWh'] = df['Expected Value kWh'] * df['PR %'] / 100
 
-# Plot using Plotly
-fig = px.line(df, x='Date and Time', y='Energy-kWh', 
-              labels={'Energy-kWh': 'Energy (kWh)', 'Date and Time': 'Date and Time'},
-              title='Energy Consumption Over Time')
-
-# Update layout for better readability
-fig.update_layout(width=1200, height=400)
-
-# Show the plot in Streamlit
-st.plotly_chart(fig)
-
 # Ensure 'Date and Time' is of datetime type
 df['Date and Time'] = pd.to_datetime(df['Date and Time'])
 
@@ -105,13 +94,9 @@ st.plotly_chart(fig)
 days_ahead = st.number_input('Enter number of days in advance to forecast total energy produced:', min_value=1, max_value=365, value=30)
 
 # Calculate total predicted energy produced based on the number of days the user selected
-total_energy_predicted = forecast.loc[forecast['ds'] <= (df['ds'].max() + pd.Timedelta(days=days_ahead)), 'yhat'].sum()
+start_date = df['ds'].max() + pd.Timedelta(days=1)
+end_date = start_date + pd.Timedelta(days=days_ahead - 1)
+total_energy_predicted = forecast.loc[(forecast['ds'] >= start_date) & (forecast['ds'] <= end_date), 'yhat'].sum()
 
 # Display the total predicted energy
 st.write(f'Total predicted energy produced in the next {days_ahead} days: {total_energy_predicted:.2f} kWh')
-
-
-    # Plot forecast components
-    st.subheader("Forecast Components")
-    fig_components = plot_components_plotly(m, forecast)
-    st.plotly_chart(fig_components)
