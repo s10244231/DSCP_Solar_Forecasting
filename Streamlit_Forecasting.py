@@ -67,18 +67,21 @@ st.markdown("## Enter number of days in advance to forecast total energy produce
 days_ahead = st.number_input('', min_value=1, max_value=365, value=30)
 
 # Calculate total predicted energy produced based on the number of days the user selected
-start_date = df['ds'].max() + pd.Timedelta(days=1)
-end_date = start_date + pd.Timedelta(days=days_ahead - 1)
-total_energy_predicted = forecast.loc[(forecast['ds'] >= start_date) & (forecast['ds'] <= end_date), 'yhat'].sum()
+start_date_input = df['ds'].max() + pd.Timedelta(days=1)
+end_date_input = start_date_input + pd.Timedelta(days=days_ahead - 1)
+total_energy_predicted = forecast.loc[(forecast['ds'] >= start_date_input) & (forecast['ds'] <= end_date_input), 'yhat'].sum()
 
-# Display the total predicted energy
-st.write(f'Total predicted energy produced in the next {days_ahead} days: ~{total_energy_predicted:.2f} kWh')
+# Calculate the start date for the line chart's slider (previous 1/4 amount of the input)
+start_date_slider = start_date_input - pd.Timedelta(days=days_ahead * 0.25)
+# Ensure that start_date_slider is not before the minimum date in the dataset
+start_date_slider = max(start_date_slider, df['ds'].min())
 
 # Plot the forecast with Plotly
 line_fig = plot_plotly(m, forecast)
 
-# Update the layout to add a title
-line_fig.update_layout(title='Energy Forecasts: Adjust the Slider Below to Select the Timeframe.')
+# Update the layout to add a title and set the range for the slider
+line_fig.update_layout(title='Energy Forecasts: Adjust the Slider Below to Select the Timeframe.',
+                       xaxis=dict(rangeslider=dict(visible=True), range=[start_date_slider, end_date_input]))
 
 # Show the plots in Streamlit
 st.plotly_chart(line_fig)
